@@ -20,6 +20,10 @@
             <ul class='mainmenu'>
                 {% for p in menu -%}
                 <li><a href="{{p.url}}">{{p.title}}</a></li>
+<!--                для варианта с файлом flsite-->
+<!--                     <li><a href="{{p.url}}">{{p.name}}</a></li>-->
+<!--                для варианта с файлом main-->
+
                 {% endfor -%}
             </ul>
         {% endblock mainmenu -%}
