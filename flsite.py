@@ -1,7 +1,7 @@
 import os.path
 import sqlite3
 import os
-from flask import Flask, render_template, request, g, flash
+from flask import Flask, render_template, request, g, flash, make_response, abort
 from FDataBase import FDataBase
 
 # конфигурация
@@ -41,6 +41,14 @@ def get_db():
         g.link_db = connect_db()
     return g.link_db
 
+dbase = None
+@app.before_request
+def before_request():
+    """ Установление соединения с БД перед выполнением запроса"""
+    global dbase
+    db = get_db()
+    dbase = FDataBase(db)
+
 @app.teardown_appcontext
 def close_db(error):
     # Закрываем соединение с БД, если оно было установлено
@@ -49,14 +57,22 @@ def close_db(error):
 
 @app.route('/')
 def index():
-    db = get_db()
-    dbase = FDataBase(db)
+    # db = get_db()
+    # dbase = FDataBase(db)
+
+    # content = render_template('index.html', menu=dbase.getMenu(), posts=dbase.getPostAnonce())
+    # res = make_response(content)
+    # res = make_response('<h1>Ошибка сервера</h1>', 500)
+    # res.headers['Content-Type'] = 'text/plain' # теперь страница отображается просто как текст, а не как hrml страница
+    # res.headers['Server'] = 'flasksite'
+    # return res
+
     return render_template('index.html', menu=dbase.getMenu(), posts=dbase.getPostAnonce()) # menu ссылка на коллекция get.Menu
 
 @app.route("/contact", methods=['POST', 'GET'])
 def contact():
-    db = get_db()
-    dbase = FDataBase(db)
+    # db = get_db()
+    # dbase = FDataBase(db)
     x = 0
     if request.method == 'POST':
         if (len(request.form['username']) < 2):
@@ -73,13 +89,11 @@ def contact():
 
 @app.route('/add_post', methods=['POST', 'GET'])
 def addPost():
-    db = get_db()
-    dbase = FDataBase(db)
+    # db = get_db()
+    # dbase = FDataBase(db)
     if request.method == 'POST': # если данные от формы пришли
-        print('Proverka')
         if len(request.form['name']) > 4 and len(request.form['post']) > 10:
             res = dbase.addPost(request.form['name'], request.form['post'], request.form['url'])
-            print(res)
             if not res:
             #     flash('Ошибка добавления статьи', category='error')
             # else:
@@ -100,15 +114,26 @@ def addPost():
 
 @app.route("/post/<alias>")
 def showPost(alias):
-    db = get_db()
-    dbase = FDataBase(db)
+    # db = get_db()
+    # dbase = FDataBase(db)
     title, text = dbase.getPost(alias)
-    print(title)
-    print(text)
     if not title:
         abort(404)
 
     return render_template('post.html', menu=dbase.getMenu(), title=title, post=text)
+
+@app.errorhandler(404)
+def pageNot(error):
+    return ('Страница не найдена', 404)
+
+@app.route("/login")
+def login():
+    return render_template('login.html', menu=dbase.getMenu(), title="Авторизация")
+
+@app.route("/register")
+def register():
+    return render_template('register.html', menu=dbase.getMenu(), title="Регистрация")
+
 
 if __name__ == "__main__":
     app.run(debug=True)
