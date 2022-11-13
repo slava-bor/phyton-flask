@@ -1,8 +1,11 @@
 import os.path
 import sqlite3
 import os
-from flask import Flask, render_template, request, g, flash, make_response, abort
+from flask import Flask, render_template, request, g, flash, make_response, abort, redirect, url_for
 from FDataBase import FDataBase
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import LoginManager, login_user, login_required
+from UserLogin import UserLogin
 
 # конфигурация
 DATABASE = '/tmp/flsite.db' # путь к базе данных
@@ -15,6 +18,13 @@ app.config.from_object(__name__) # через метод from.object загру�
 # переопределяем путь к базе данных через свойство root_path, который ссылается на текущий рабочий каталог
 # app.root_path, 'flsite.db' так мы формируем полный путь к нашей базе данных
 app.config.update(dict(DATABASE=os.path.join(app.root_path, 'flsite.db')))
+
+login_manager = LoginManager(app) # создаем экземпляр класса LoginManager и связываем его с нашим преложением app
+
+@login_manager.user_loader
+def load_user(user_id):
+    print('load_user')
+    return UserLogin().fromDB(user_id, dbase)
 
 # menu = [{"name": "Установка", "url": "install-flask"},
 #         {"name": "Первое приложение", "url": "first-app"},
@@ -113,6 +123,7 @@ def addPost():
 #     return render_template('post.html', menu=dbase.getMenu(), title=title, post=text)
 
 @app.route("/post/<alias>")
+@login_required #этот декоратор дает доступ к статьям только авторизованным пользователям
 def showPost(alias):
     # db = get_db()
     # dbase = FDataBase(db)
@@ -126,12 +137,35 @@ def showPost(alias):
 def pageNot(error):
     return ('Страница не найдена', 404)
 
-@app.route("/login")
+@app.route("/login", methods=['POST', 'GET'])
 def login():
+    if request.method == 'POST':
+        user = dbase.getUserByEmail(request.form['email']) #берем данные пользователя из бд по email
+        if user and check_password_hash(user['psw'], request.form['psw']): # если данные о user были получены и пароли совпадают
+            userLogin = UserLogin().create(user) # создаем экземпляр класса UserLogin и передаем ему всю информацию о пользователе user
+            login_user(userLogin) # и авторизуем пользователя с помощью функции специальной функции login_user (надо её импортировать)
+            return redirect(url_for('index')) # если всё ОК то перенаправляем на index
+
     return render_template('login.html', menu=dbase.getMenu(), title="Авторизация")
 
-@app.route("/register")
+@app.route("/register", methods=['POST', 'GET'])
 def register():
+    if request.method == 'POST':  # если данные от формы пришли
+        if len(request.form['name']) > 4 and len(request.form['email']) > 4 \
+            and len(request.form['psw']) > 4 and request.form['psw'] == request.form['psw2']:
+            hash = generate_password_hash(request.form['psw'])
+            res = dbase.addUser(request.form['name'], request.form['email'], hash)
+            if res:
+                flash('Вы успешно зарегистрированы', 'success')
+                return redirect(url_for('login'))
+            else:
+                flash('Ошибка при добавление в БД', 'error')
+        else:
+            if request.form['psw'] != request.form['psw2']:
+                flash('Пароли не совпадают', 'error')
+            else:
+                flash('Неверно зполнены поля', 'error')
+
     return render_template('register.html', menu=dbase.getMenu(), title="Регистрация")
 
 

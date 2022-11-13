@@ -42,8 +42,6 @@ class FDataBase:
                 # base путь к каталогу с картинками
                 text = re.sub(r"(?P<tag><img\s+[^>]*src=)(?P<quote>[\"'])(?P<url>.+?)(?P=quote)>","\\g<tag>" + base + "/\\g<url>>",res['text'])
                 # регулярное выражение, чтобы составить полный путь к картинкам сайта
-                print(base)
-                print(text)
                 return (res['title'], text)
         except sqlite3.Error as e:
             print('Ошибка получения статьи из БД' + str(e))
@@ -54,9 +52,54 @@ class FDataBase:
         try:
             self.__cur.execute(f'SELECT id, title, text, url FROM posts ORDER BY time DESC')
             res = self.__cur.fetchall()
-            print(res)
             if res: return res
         except sqlite3.Error as e:
             print('Ошибка получения статьи из БД' + str(e))
 
         return []
+
+    def addUser(self, name, email, hpsw):
+        try:
+            self.__cur.execute(f"SELECT COUNT() as 'count' FROM users WHERE email LIKE '{email}'")
+            res = self.__cur.fetchone()
+            if res['count'] > 0:
+                print('Пользователь с таким emqil уже существует')
+                return False
+            tm = math.floor(time.time()) # формируем время когда происходит регистрация пользователя
+            self.__cur.execute('INSERT INTO users VALUES(NULL, ?, ?, ?, ?)', (name, email, hpsw, tm)) #добавляем в базу данных все поля
+            self.__db.commit() #вызываем функцию commit, чтобы сохранить данные непосредственно в базу данных
+        except sqlite3.Error as e:
+            print('Ошибка добавления пользователя в БД'+str(e))
+            return False
+
+        return True
+
+    def getUser(self, user_id):
+        try:
+            self.__cur.execute(f'SELECT * FROM users WHERE id = {user_id} LIMIT 1')
+            res = self.__cur.fetchone()
+            print('res =', res)
+            if not res:
+                print('Пользователь не найден')
+                return False
+
+            return res
+        except sqlite3.Error as e:
+            print('Ошибка получения данных из БД'+str(e))
+
+        return False
+
+    def getUserByEmail(self, email):
+        try:
+            self.__cur.execute(f'SELECT * FROM users WHERE id = {email} LIMIT 1')
+            res = self.__cur.fetchone()
+            print('res =', res)
+            if not res:
+                print('Пользователь не найден')
+                return False
+
+            return res
+        except sqlite3.Error as e:
+            print('Ошибка получения данных из БД'+str(e))
+
+        return False
