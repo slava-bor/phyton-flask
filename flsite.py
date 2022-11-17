@@ -4,13 +4,14 @@ import os
 from flask import Flask, render_template, request, g, flash, make_response, abort, redirect, url_for
 from FDataBase import FDataBase
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_login import LoginManager, login_user, login_required
+from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from UserLogin import UserLogin
 
 # конфигурация
 DATABASE = '/tmp/flsite.db' # путь к базе данных
 DEBUG = True # устанавливает режим отладки
 SECRET_KEY ='dwhsej,.<>843h3nfjk8ek34,dlkwkei'
+MAX_CONTENT_LENGTH = 1024 * 1024 #размер файла аватарки которую можно загружать на сервер
 
 app = Flask(__name__) # создаем приложение Flask
 app.config.from_object(__name__) # через метод from.object загружаем нашу конфигурацию, name значит кофигурацию берем из этого файла
@@ -143,8 +144,11 @@ def login():
         user = dbase.getUserByEmail(request.form['email']) #берем данные пользователя из бд по email
         if user and check_password_hash(user['psw'], request.form['psw']): # если данные о user были получены и пароли совпадают
             userLogin = UserLogin().create(user) # создаем экземпляр класса UserLogin и передаем ему всю информацию о пользователе user
-            login_user(userLogin) # и авторизуем пользователя с помощью функции специальной функции login_user (надо её импортировать)
-            return redirect(url_for('index')) # если всё ОК то перенаправляем на index
+            rm = True if request.form.get('remainme') else False #определяем была ли поставлена птичка Запомнить меня
+            login_user(userLogin, remember=rm) # и авторизуем пользователя с помощью функции специальной функции login_user (надо её импортировать)
+            return redirect(url_for('profile')) # если всё ОК то перенаправляем на profile
+
+        flash('Неверная пара логин/пароль', 'error')
 
     return render_template('login.html', menu=dbase.getMenu(), title="Авторизация")
 
@@ -168,6 +172,18 @@ def register():
 
     return render_template('register.html', menu=dbase.getMenu(), title="Регистрация")
 
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('Вы вышли из аккаунта', 'success')
+    return redirect(url_for('login'))
+
+@app.route('/profile')
+@login_required
+def profile():
+    return f"""<p><a href="{url_for('logout')}">Выйти из профиля</a>
+                <p>user info:{current_user.get_id()}""" #обращаемся к методу get_id чтобы получить id текущего пользователя
 
 if __name__ == "__main__":
     app.run(debug=True)
