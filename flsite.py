@@ -6,12 +6,13 @@ from FDataBase import FDataBase
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from UserLogin import UserLogin
+from forms import LoginForm
 
 # конфигурация
 DATABASE = '/tmp/flsite.db' # путь к базе данных
 DEBUG = True # устанавливает режим отладки
 SECRET_KEY ='dwhsej,.<>843h3nfjk8ek34,dlkwkei'
-MAX_CONTENT_LENGTH = 1024 * 1024 #размер файла аватарки которую можно загружать на сервер
+MAX_CONTENT_LENGTH = 1024 * 1024 #размер файла аватарки которую можно загружать на сервер 1Мб
 
 app = Flask(__name__) # создаем приложение Flask
 app.config.from_object(__name__) # через метод from.object загружаем нашу конфигурацию, name значит кофигурацию берем из этого файла
@@ -140,17 +141,36 @@ def pageNot(error):
 
 @app.route("/login", methods=['POST', 'GET'])
 def login():
-    if request.method == 'POST':
-        user = dbase.getUserByEmail(request.form['email']) #берем данные пользователя из бд по email
-        if user and check_password_hash(user['psw'], request.form['psw']): # если данные о user были получены и пароли совпадают
-            userLogin = UserLogin().create(user) # создаем экземпляр класса UserLogin и передаем ему всю информацию о пользователе user
-            rm = True if request.form.get('remainme') else False #определяем была ли поставлена птичка Запомнить меня
-            login_user(userLogin, remember=rm) # и авторизуем пользователя с помощью функции специальной функции login_user (надо её импортировать)
-            return redirect(url_for('profile')) # если всё ОК то перенаправляем на profile
+    if current_user.is_authenticated:
+        return redirect(url_for('profile'))
 
-        flash('Неверная пара логин/пароль', 'error')
+    form = LoginForm() #создаем экземпляр класса LoginForm
+    if form.validate_on_submit(): #проверяем, а были ли отправлены данные методом POST запроса
+        #и еще проверяет правильно ли заполнены поля, которые мы проверяем validatos в forms.py
+         user = dbase.getUserByEmail(form.email.data)  # берем данные пользователя из бд по email
+         if user and check_password_hash(user['psw'], form.psw.data): # если данные о user были получены и пароли совпадают
+             userLogin = UserLogin().create(user) # создаем экземпляр класса UserLogin и передаем ему всю информацию о пользователе user
+         rm = form.remember.data #определяем была ли поставлена птичка Запомнить меня
+         login_user(userLogin, remember=rm) # и авторизуем пользователя с помощью функции специальной функции login_user (надо её импортировать)
+         return redirect(request.args.get('next') or url_for('profile')) # если всё ОК то перенаправляем на profile
 
-    return render_template('login.html', menu=dbase.getMenu(), title="Авторизация")
+    flash('Неверная пара логин/пароль', 'error')
+
+    return  render_template('login.html', menu=dbase.getMenu(), title='Авторизация', form=form) #далее в login.html мы переадем ссылку на экземпляр класса form
+
+
+
+    # if request.method == 'POST':
+    #     user = dbase.getUserByEmail(request.form['email']) #берем данные пользователя из бд по email
+    #     if user and check_password_hash(user['psw'], request.form['psw']): # если данные о user были получены и пароли совпадают
+    #         userLogin = UserLogin().create(user) # создаем экземпляр класса UserLogin и передаем ему всю информацию о пользователе user
+    #         rm = True if request.form.get('remainme') else False #определяем была ли поставлена птичка Запомнить меня
+    #         login_user(userLogin, remember=rm) # и авторизуем пользователя с помощью функции специальной функции login_user (надо её импортировать)
+    #         return redirect(url_for('profile')) # если всё ОК то перенаправляем на profile
+    #
+    #     flash('Неверная пара логин/пароль', 'error')
+    #
+    # return render_template('login.html', menu=dbase.getMenu(), title="Авторизация")
 
 @app.route("/register", methods=['POST', 'GET'])
 def register():
@@ -182,8 +202,40 @@ def logout():
 @app.route('/profile')
 @login_required
 def profile():
-    return f"""<p><a href="{url_for('logout')}">Выйти из профиля</a>
-                <p>user info:{current_user.get_id()}""" #обращаемся к методу get_id чтобы получить id текущего пользователя
+    return render_template('profile.html', menu=dbase.getMenu(), title='Профиль')
+
+@app.route('/userava')
+@login_required
+def userava():
+    img = current_user.getAvatar(app)
+    if not img:
+        return ''
+
+    h = make_response(img)
+    h.headers['Content-Type'] = 'image/png'
+    return h
+
+@app.route('/upload', methods=['POST', 'GET'])
+@login_required #только для зарегистрированных пользователей
+def upload():
+    if request.method == 'POST': #проверяем что пришли данные по методу POST
+        file = request.files['file'] #если данные пришли, то берем поле file из объекта request
+        #которое асоцииноравно с загруженным на сервер файлом, т.е. тем файлом который был выбран в profile Пользователя
+        if file and current_user.verifyExt(file.filename): #далее идет проверка, что file был успешно загружен
+            # и его расширение png. Проверка происходит с помощью написанного метода verifyExt в UserLogin
+            try:
+                img = file.read() #дале читаем file, если мы его прочитали то затем, вызываем метод updateUser Avatar
+                #в котором происходит изменение аватара пользователя в базе данных, это метод мы пропишем сами в FDataBase
+                res = dbase.updateUserAvatar(img, current_user.get_id())
+                if not res:
+                    flash('Ошибка обновления аватара', 'error')
+                flash('Аватар обновлен', 'success')
+            except FileNotFoundError as e:
+                flash('Ошибка чтения файла', 'error')
+        else:
+            flash('Ошибка обновления аватара', 'error')
+
+    return redirect(url_for('profile'))
 
 if __name__ == "__main__":
     app.run(debug=True)

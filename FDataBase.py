@@ -66,7 +66,7 @@ class FDataBase:
                 print('Пользователь с таким emqil уже существует')
                 return False
             tm = math.floor(time.time()) # формируем время когда происходит регистрация пользователя
-            self.__cur.execute('INSERT INTO users VALUES(NULL, ?, ?, ?, ?)', (name, email, hpsw, tm)) #добавляем в базу данных все поля
+            self.__cur.execute('INSERT INTO users VALUES(NULL, ?, ?, ?, NULL, ?)', (name, email, hpsw, tm)) #добавляем в базу данных все поля
             self.__db.commit() #вызываем функцию commit, чтобы сохранить данные непосредственно в базу данных
         except sqlite3.Error as e:
             print('Ошибка добавления пользователя в БД'+str(e))
@@ -76,7 +76,7 @@ class FDataBase:
 
     def getUser(self, user_id):
         try:
-            self.__cur.execute(f'SELECT * FROM users WHERE id = {user_id} LIMIT 1')
+            self.__cur.execute(f"SELECT * FROM users WHERE id = '{user_id}' LIMIT 1")
             res = self.__cur.fetchone()
             print('res =', res)
             if not res:
@@ -91,8 +91,12 @@ class FDataBase:
 
     def getUserByEmail(self, email):
         try:
-            self.__cur.execute(f'SELECT * FROM users WHERE id = {email} LIMIT 1')
+
+            self.__cur.execute(f"SELECT * FROM users WHERE email = '{email}' LIMIT 1")
+            print(email)
+
             res = self.__cur.fetchone()
+
             print('res =', res)
             if not res:
                 print('Пользователь не найден')
@@ -103,3 +107,17 @@ class FDataBase:
             print('Ошибка получения данных из БД'+str(e))
 
         return False
+
+    def updateUserAvatar(self, avatar, user_id):
+        if not avatar: #если аватра ничего не содержит то функция завершается
+            return False
+
+        try:
+            binary = sqlite3.Binary(avatar) #превращаем объект в бинарный объект через специальный метод sqlite3
+            self.__cur.execute(f'UPDATE users SET avatar = ? WHERE id = ?', (binary, user_id))
+            #затем этот бинарный объект помещаем в БД
+            self.__db.commit() #сохраняем изменения в БД
+        except sqlite3.Error as e:
+            print('Ошибка обновления аватара в БД', + str(e))
+            return False
+        return True
