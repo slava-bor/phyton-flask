@@ -2,7 +2,7 @@ import math # округление
 import time
 import sqlite3
 import re # импортируем регулярные выражения
-from flask import url_for
+from flask import url_for, flash
 
 class FDataBase:
     def __init__(self, db): # db ссылка на связь с базой данных
@@ -100,6 +100,7 @@ class FDataBase:
             print('res =', res)
             if not res:
                 print('Пользователь не найден')
+                flash('Такой пользователь не найден', 'error')
                 return False
 
             return res
