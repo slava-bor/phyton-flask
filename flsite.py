@@ -6,7 +6,8 @@ from FDataBase import FDataBase
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from UserLogin import UserLogin
-from forms import LoginForm
+from forms import LoginForm, RegisterForm
+from admin.admin import admin
 
 # конфигурация
 DATABASE = '/tmp/flsite.db' # путь к базе данных
@@ -16,10 +17,11 @@ MAX_CONTENT_LENGTH = 1024 * 1024 #размер файла аватарки ко�
 
 app = Flask(__name__) # создаем приложение Flask
 app.config.from_object(__name__) # через метод from.object загружаем нашу конфигурацию, name значит кофигурацию берем из этого файла
-
+app.config.update(dict(DATABASE=os.path.join(app.root_path, 'flsite.db')))
 # переопределяем путь к базе данных через свойство root_path, который ссылается на текущий рабочий каталог
 # app.root_path, 'flsite.db' так мы формируем полный путь к нашей базе данных
-app.config.update(dict(DATABASE=os.path.join(app.root_path, 'flsite.db')))
+
+app.register_blueprint(admin, url_prefix='/admin') #регистрируем blueprint в app 
 
 login_manager = LoginManager(app) # создаем экземпляр класса LoginManager и связываем его с нашим преложением app
 
@@ -145,18 +147,19 @@ def login():
         return redirect(url_for('profile'))
 
     form = LoginForm() #создаем экземпляр класса LoginForm
-    if form.validate_on_submit(): #проверяем, а были ли отправлены данные методом POST запроса
+    if form.validate_on_submit(): #проверяем, а были ли отправлены данные методом POST запроса (это эквивалент request.method == 'POST')
         #и еще проверяет правильно ли заполнены поля, которые мы проверяем validatos в forms.py
          user = dbase.getUserByEmail(form.email.data)  # берем данные пользователя из бд по email
          if user and check_password_hash(user['psw'], form.psw.data): # если данные о user были получены и пароли совпадают
-             userLogin = UserLogin().create(user) # создаем экземпляр класса UserLogin и передаем ему всю информацию о пользователе user
-         rm = form.remember.data #определяем была ли поставлена птичка Запомнить меня
-         login_user(userLogin, remember=rm) # и авторизуем пользователя с помощью функции специальной функции login_user (надо её импортировать)
-         return redirect(request.args.get('next') or url_for('profile')) # если всё ОК то перенаправляем на profile
+            userLogin = UserLogin().create(user) # создаем экземпляр класса UserLogin и передаем ему всю информацию о пользователе user
+            rm = form.remember.data #определяем была ли поставлена птичка Запомнить меня
+            login_user(userLogin, remember=rm)
+             # и авторизуем пользователя с помощью функции специальной функции login_user (надо её импортировать)
+            return redirect(request.args.get('next') or url_for('profile')) # если всё ОК то перенаправляем на profile
 
-    flash('Неверная пара логин/пароль', 'error')
+            flash('Неверная пара логин/пароль', 'error')
 
-    return  render_template('login.html', menu=dbase.getMenu(), title='Авторизация', form=form) #далее в login.html мы переадем ссылку на экземпляр класса form
+    return render_template('login.html', menu=dbase.getMenu(), title='Авторизация', form=form) #далее в login.html мы переадем ссылку на экземпляр класса form
 
 
 
@@ -174,23 +177,17 @@ def login():
 
 @app.route("/register", methods=['POST', 'GET'])
 def register():
-    if request.method == 'POST':  # если данные от формы пришли
-        if len(request.form['name']) > 4 and len(request.form['email']) > 4 \
-            and len(request.form['psw']) > 4 and request.form['psw'] == request.form['psw2']:
-            hash = generate_password_hash(request.form['psw'])
-            res = dbase.addUser(request.form['name'], request.form['email'], hash)
+    form = RegisterForm()
+    if form.validate_on_submit(): #если данные формы заполнены корректно
+            hash = generate_password_hash(form.psw.data)
+            res = dbase.addUser(form.name.data, form.email.data, hash)
             if res:
                 flash('Вы успешно зарегистрированы', 'success')
                 return redirect(url_for('login'))
             else:
                 flash('Ошибка при добавление в БД', 'error')
-        else:
-            if request.form['psw'] != request.form['psw2']:
-                flash('Пароли не совпадают', 'error')
-            else:
-                flash('Неверно зполнены поля', 'error')
 
-    return render_template('register.html', menu=dbase.getMenu(), title="Регистрация")
+    return render_template('register.html', menu=dbase.getMenu(), title="Регистрация", form=form)
 
 @app.route('/logout')
 @login_required
