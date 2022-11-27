@@ -6,10 +6,52 @@
 <div class="flash {{cat}}">{{msg}}</div>
 {% endfor %}
 <form action="/login" method="post" class="form-contact">
-    {{ form.hidden_tag() }} <!--    метод hidden_tag создает скрытое поле содержащее токен используемый
+{{ form.hidden_tag() }} <!--    метод hidden_tag создает скрытое поле содержащее токен используемый
     для защиты от csrf атак-->
-    <p>{{ form.email.label() }} {{ form.email() }}
-    <p>{{ form.psw.label() }} {{ form.psw() }}
+
+
+{% for field in form if field.name not in ['csrf_token', 'remember', 'submit'] -%}
+    <p>{{ field.label() }}
+    {% if field.errors %}
+       {{ field(class='invalid') }}
+        <span class="invalid-feedback">
+            {% for e in field.errors %}
+                {{ e }}
+            {% endfor %}
+        </span>
+    {% else %}
+        {{ field() }}
+    {% endif %}
+{% endfor %}
+
+
+<!--    &lt;!&ndash;    <p>{{ form.email.label() }} {{ form.email() }}&ndash;&gt;-->
+<!--<p>{{ form.email.label() }}-->
+<!--{% if form.email.errors %}-->
+<!--   {{ form.email(class='invalid') }}-->
+<!--    <span class="invalid-feedback">-->
+<!--        {% for e in form.email.errors %}-->
+<!--            {{ e }}-->
+<!--        {% endfor %}-->
+<!--    </span>-->
+<!--{% else %}-->
+<!--    {{ form.email() }}-->
+<!--{% endif %}-->
+
+<!--&lt;!&ndash;    <p>{{ form.psw.label() }} {{ form.psw() }}&ndash;&gt;-->
+<!--<p>{{ form.psw.label() }}-->
+<!--{% if form.psw.errors %}-->
+<!--    {{ form.psw(class='invalid') }}-->
+<!--    <span class="invalid-feedback">-->
+<!--        {% for e in form.psw.errors %}-->
+<!--            {{ e }}-->
+<!--        {% endfor %}-->
+<!--    </span>-->
+<!--{% else %}-->
+<!--    {{ form.psw() }}-->
+<!--{% endif %}-->
+
+
     <p>{{ form.remember.label() }} {{ form.remember() }}
     <p>{{ form.submit() }}
 
